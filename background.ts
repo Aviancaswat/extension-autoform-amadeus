@@ -120,7 +120,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 console.log('[CONTENT-SCRIPT] Selects encontrados: ', selectElements.length, selectElements);
 
                 // recorriendo los elementos de tipo input
-                Array.from(inputsElements).forEach((element) => {
+                for (const element of Array.from(inputsElements)) {
+
+                  if (element.getAttribute("formcontrolname") === "countryPhoneExtension") {
+                    console.log('[CONTENT-SCRIPT] Elemento de extensión de teléfono encontrado, seleccionando opción:', element);
+                    (element as HTMLInputElement).click();
+                    await new Promise((r) => setTimeout(r, 200));
+
+                    const optionSelect = document.querySelector("mat-option") as HTMLButtonElement;
+                    if (optionSelect) {
+                      console.log('[CONTENT-SCRIPT] Clickeando opción de extensión de teléfono:', optionSelect);
+                      optionSelect.click();
+                      await new Promise((r) => setTimeout(r, 200));
+                    } else {
+                      console.error('[CONTENT-SCRIPT] No se encontró ninguna mat-option para extensión de teléfono en el documento:', element);
+                    }
+                    continue;
+                  }
+
                   const containerElement = element.closest('.mat-mdc-text-field-wrapper');
                   console.log('[CONTENT-SCRIPT] setValuesDefaultAutoForm iniciado');
                   containerElement?.classList.add('mdc-text-field--focused')
@@ -145,13 +162,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     element.dispatchEvent(eventBlur);
                     containerElement?.classList.remove('mdc-text-field--focused');
                   }, 100);
-                });
+                }
 
                 // recorriendo los elementos de tipo select
                 for (const element of Array.from(selectElements)) {
                   await selectOptionElement(element as HTMLElement);
                 }
 
+                // check input de términos y condiciones
+                const checkPrivacyElement = document.querySelector('mat-checkbox[formcontrolname="isPrivacyPolicyAccepted"]') as HTMLInputElement;
+                if (checkPrivacyElement) {
+                  const checkInput = checkPrivacyElement.querySelector('.mdc-checkbox__native-control') as HTMLInputElement;
+                  console.log('[CONTENT-SCRIPT] Elemento de política de privacidad encontrado, seleccionando:', checkPrivacyElement);
+                  checkInput.click();
+                } else {
+                  console.error('[CONTENT-SCRIPT] No se encontró el elemento de política de privacidad en el documento');
+                }
                 console.log('[CONTENT-SCRIPT] setValuesDefaultAutoForm completado');
               };
 
