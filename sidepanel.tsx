@@ -23,7 +23,7 @@ function IndexSidepanel() {
       }
     )
     
-    await new Promise((r) => setTimeout(r, 1400))
+    await new Promise((r) => setTimeout(r, 3500))
     setStatus("done")
     setTimeout(() => setStatus("idle"), 2200)
   }

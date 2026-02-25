@@ -182,6 +182,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               };
 
               await setValuesDefaultAutoForm();
+
+              // click en el botón de submit
+              const continueInformationContact = document.querySelector('button[data-testid="passenger-btn"]') as HTMLButtonElement;
+              if (continueInformationContact) {
+                continueInformationContact.click();
+
+                setTimeout(async () => {
+                  await setValuesDefaultAutoForm();
+                }, 500);
+              }
               return { success: true, message: 'Formulario rellenado' };
             }
           }).then((results) => {
