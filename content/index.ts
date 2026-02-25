@@ -88,10 +88,10 @@ const setValuesDefaultAutoForm = (): void => {
       }
     } else if (element.tagName === 'INPUT') {
       console.log('[CONTENT-SCRIPT] Procesando INPUT, nombre:', (element as any).name, 'id:', (element as any).id);
-      const containers = document.querySelectorAll('.ui-input-container');
+      const containers = document.querySelectorAll('.mat-mdc-text-field-wrapper');
       console.log('[CONTENT-SCRIPT] Contenedores encontrados:', containers.length);
       Array.from(containers).forEach((e) => {
-        e.classList.add('is-focused');
+        e.classList.add('mdc-text-field--focused');
       });
       const eventBlur = new Event('blur');
       const eventFocus = new Event('focus');
@@ -108,11 +108,12 @@ const setValuesDefaultAutoForm = (): void => {
         console.log('[CONTENT-SCRIPT] Disparando evento blur');
         element.dispatchEvent(eventBlur);
         Array.from(containers).forEach((e) => {
-          e.classList.remove('is-focused');
+          e.classList.remove('mdc-text-field--focused');
         });
       }, 100);
     }
   });
+
   const fieldAuthoritation = document.querySelector('#acceptNewCheckbox') as HTMLInputElement;
   console.log('[CONTENT-SCRIPT] Campo de autorización encontrado:', fieldAuthoritation);
   if (fieldAuthoritation) {

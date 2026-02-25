@@ -10,7 +10,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('[Background] sender:', sender)
   if (request.action === 'fillForm') {
     console.log('[Background] Acción detectada: fillForm')
-    
+
     chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
       console.log('[Background] Pestaña activa encontrada:', tabs[0]?.id, tabs[0]?.url)
       if (tabs[0]?.id) {
@@ -22,13 +22,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }).catch((error) => {
           console.error('[Background] Error enviando mensaje al content script:', error.message)
           console.error('[Background] Content script no disponible, inyectando script directamente...')
-          
+
           chrome.scripting.executeScript({
             target: { tabId: tabs[0].id },
-            func: () => {
-              const userNamesData = ['monitoreo']
-              const lastNamesData = ['digital']
-              const emailsData = ['monitoreo.digital@avianca.com']
+            func: async () => {
+
+              const userNamesData = [
+                'monitoreo'
+              ];
+
+              const lastNamesData = [
+                'digital'
+              ];
+
+              const emailsData = [
+                'monitoreo.digital@avianca.com'
+              ];
+
               const phoneNumbersData = [
                 '123456',
                 '987654',
@@ -40,81 +50,112 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 '112233',
                 '778899',
                 '334455'
-              ]
+              ];
+
+              const getDayData = (): string => {
+                const day = Math.floor(Math.random() * 28) + 1;
+                return day.toString();
+              };
+
+              const getYearData = (): string => {
+                const year = Math.floor(Math.random() * (2000 - 1950 + 1)) + 1950;
+                return year.toString();
+              }
 
               const getDataRandom = (data: string[] = []): string => {
                 const randomIndex = Math.floor(Math.random() * data.length);
-                return data[randomIndex];
+                const selectedValue = data[randomIndex];
+                console.log('[CONTENT-SCRIPT] getDataRandom: datos disponibles', data.length, 'índice seleccionado:', randomIndex, 'valor:', selectedValue);
+                return selectedValue;
               };
 
               const getValueElement = (element: HTMLInputElement | HTMLButtonElement): string => {
-                let value = '';
-                if (element.name === 'email' || element.name === 'confirmEmail' || element.id.includes('email') || element.id.includes('confirmEmail')) {
-                  value = getDataRandom(emailsData);
-                } else if (element.name === 'phone_phoneNumberId' || element.id.includes('phone_phoneNumberId')) {
-                  value = getDataRandom(phoneNumbersData);
-                } else if (element.id.includes('IdFirstName')) {
+
+                let value: string = "";
+                let testId = element.dataset['testid'] || '';
+
+                if (testId && testId.toLowerCase().includes('first-name-input')) {
                   value = getDataRandom(userNamesData);
-                } else {
+                } else if (testId && testId.toLowerCase().includes('last-name-input')) {
                   value = getDataRandom(lastNamesData);
+                } else if (testId && testId.toLowerCase().includes('phone-input')) {
+                  value = getDataRandom(phoneNumbersData);
+                } else if (testId && testId.toLowerCase().includes('email-input-element')) {
+                  value = getDataRandom(emailsData);
+                } else if (testId && testId.toLowerCase().includes('confirm-email-input-element')) {
+                  value = getDataRandom(emailsData);
+                } else if (element.name === "bday-day") {
+                  value = getDayData();
+                } else if (element.name === "bday-year") {
+                  value = getYearData();
                 }
+
+                console.log('[CONTENT-SCRIPT] getValueElement devolviendo valor:', value, 'para elemento:', element);
                 return value;
               };
 
-              const getButtonAndClickItem = (): void => {
-                const listOptions = document.querySelector('.ui-dropdown_list');
-                const buttonElement = listOptions?.querySelector('.ui-dropdown_item>button') as HTMLButtonElement;
-                if (buttonElement) {
-                  buttonElement.click();
+              const selectOptionElement = async (element: HTMLElement): Promise<void> => {
+                console.log('[CONTENT-SCRIPT] selectOptionElement iniciado');
+                (element as HTMLElement).click();
+
+                await new Promise((r) => setTimeout(r, 200));
+
+                // Buscar la primera opción disponible en todo el documento
+                const optionSelect = document.querySelector("mat-option") as HTMLButtonElement;
+                if (optionSelect) {
+                  console.log('[CONTENT-SCRIPT] Clickeando primera opción:', optionSelect);
+                  optionSelect.click();
+                } else {
+                  console.error('[CONTENT-SCRIPT] No se encontró ninguna mat-option en el documento:', element);
                 }
+
+                await new Promise((r) => setTimeout(r, 200));
               };
 
-              const setValuesDefaultAutoForm = (): void => {
-                const elements = document.querySelectorAll('.ui-input');
-                Array.from(elements).forEach((element) => {
-                  if (element.tagName === 'BUTTON') {
-                    if ((element as any).id === 'passengerId') {
-                      (element as HTMLButtonElement).click();
-                      setTimeout(() => {
-                        getButtonAndClickItem();
-                      }, 1000);
-                    } else if ((element as any).id === 'phone_prefixPhoneId') {
-                      setTimeout(() => {
-                        (element as HTMLButtonElement).click();
-                        getButtonAndClickItem();
-                      }, 1000);
-                    } else {
-                      (element as HTMLButtonElement).click();
-                      getButtonAndClickItem();
-                    }
-                  } else if (element.tagName === 'INPUT') {
-                    const containers = document.querySelectorAll('.ui-input-container');
-                    Array.from(containers).forEach((e) => {
-                      e.classList.add('is-focused');
-                    });
-                    const eventBlur = new Event('blur');
-                    const eventFocus = new Event('focus');
-                    (element as HTMLInputElement).value = getValueElement(element as HTMLInputElement);
-                    ['change', 'input'].forEach((event) => {
-                      const handleEvent = new Event(event, { bubbles: true, cancelable: false });
-                      element.dispatchEvent(handleEvent);
-                    });
-                    element.dispatchEvent(eventFocus);
-                    setTimeout(() => {
-                      element.dispatchEvent(eventBlur);
-                      Array.from(containers).forEach((e) => {
-                        e.classList.remove('is-focused');
-                      });
-                    }, 100);
-                  }
+              const setValuesDefaultAutoForm = async (): Promise<void> => {
+
+                const inputsElements = document.querySelectorAll(".mat-mdc-input-element");
+                const selectElements = document.querySelectorAll('mat-select');
+                console.log('[CONTENT-SCRIPT] Elementos encontrados: ', inputsElements.length, inputsElements);
+                console.log('[CONTENT-SCRIPT] Selects encontrados: ', selectElements.length, selectElements);
+
+                // recorriendo los elementos de tipo input
+                Array.from(inputsElements).forEach((element) => {
+                  const containerElement = element.closest('.mat-mdc-text-field-wrapper');
+                  console.log('[CONTENT-SCRIPT] setValuesDefaultAutoForm iniciado');
+                  containerElement?.classList.add('mdc-text-field--focused')
+
+                  const eventBlur = new Event('blur');
+                  const eventFocus = new Event('focus');
+                  const valueElement = getValueElement(element as HTMLInputElement);
+                  (element as HTMLInputElement).value = valueElement;
+                  console.log('[CONTENT-SCRIPT] Valor asignado al elemento:', valueElement);
+
+                  ['change', 'input'].forEach((event) => {
+                    console.log('[CONTENT-SCRIPT] Disparando evento:', event);
+                    const handleEvent = new Event(event, { bubbles: true, cancelable: false });
+                    element.dispatchEvent(handleEvent);
+                  });
+
+                  console.log('[CONTENT-SCRIPT] Disparando evento focus');
+                  element.dispatchEvent(eventFocus);
+
+                  setTimeout(() => {
+                    console.log('[CONTENT-SCRIPT] Disparando evento blur');
+                    element.dispatchEvent(eventBlur);
+                    containerElement?.classList.remove('mdc-text-field--focused');
+                  }, 100);
                 });
-                const fieldAuthoritation = document.querySelector('#acceptNewCheckbox') as HTMLInputElement;
-                if (fieldAuthoritation) {
-                  fieldAuthoritation.checked = true;
+
+                // recorriendo los elementos de tipo select
+                for (const element of Array.from(selectElements)) {
+                  await selectOptionElement(element as HTMLElement);
                 }
+
+                console.log('[CONTENT-SCRIPT] setValuesDefaultAutoForm completado');
               };
 
-              setValuesDefaultAutoForm();
+              await setValuesDefaultAutoForm();
               return { success: true, message: 'Formulario rellenado' };
             }
           }).then((results) => {
@@ -133,7 +174,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.error('[Background] Error al consultar pestaña activa:', err)
       sendResponse({ success: false, error: err.message })
     })
-    
+
     return true
   }
 })
