@@ -181,7 +181,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 console.log('[CONTENT-SCRIPT] setValuesDefaultAutoForm completado');
               };
 
-              await setValuesDefaultAutoForm();
+              const numberPassengers = document.querySelector(".mat-tab-labels")?.children?.length;
+              console.log('[CONTENT-SCRIPT] Número de pasajeros detectados:', numberPassengers);
+
+              if (!numberPassengers) {
+                console.error('[CONTENT-SCRIPT] No se detectaron pasajeros en el formulario');
+                return { success: false, message: 'No se detectaron pasajeros en el formulario' };
+              }
+
+              for (let i = 0; i < numberPassengers; i++) {
+                const tabPassenger = document.querySelector(`.mat-tab-labels .mat-tab-label:nth-child(${i + 1})`) as HTMLElement;
+                tabPassenger.click();
+                await setValuesDefaultAutoForm();
+              }
 
               // click en el botón de submit
               const continueInformationContact = document.querySelector('button[data-testid="passenger-btn"]') as HTMLButtonElement;
