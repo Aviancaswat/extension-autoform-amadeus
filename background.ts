@@ -28,7 +28,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             func: async () => {
 
               const userNamesData = [
-                'monitoreo'
+                'monitoreo',
+                'juan',
+                'esteban',
+                'maria',
+                'carlos',
+                'adriana'
               ];
 
               const lastNamesData = [
@@ -57,10 +62,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 return day.toString();
               };
 
-              const getYearData = (): string => {
-                const year = Math.floor(Math.random() * (2000 - 1950 + 1)) + 1950;
+              const getYearData = (passengerType: string = 'ADT'): string => {
+                const currentYear = new Date().getFullYear();
+                let year: number;
+
+                if (passengerType.includes('ADT') || passengerType.toLowerCase().includes('adulto')) {
+                  // Adulto: > 18 años (entre 19 y 60 años atrás)
+                  year = currentYear - Math.floor(Math.random() * (60 - 19 + 1)) - 19;
+                } else if (passengerType.includes('YTH') || passengerType.toLowerCase().includes('joven')) {
+                  // Joven: 12-14 años (entre 12 y 14 años atrás)
+                  year = currentYear - Math.floor(Math.random() * (14 - 12 + 1)) - 12;
+                } else if (passengerType.includes('CHD') || passengerType.toLowerCase().includes('niño')) {
+                  // Niño: 2-11 años (entre 2 y 11 años atrás)
+                  year = currentYear - Math.floor(Math.random() * (11 - 2 + 1)) - 2;
+                } else if (passengerType.includes('INF') || passengerType.toLowerCase().includes('bebé')) {
+                  // Bebé: <= 2 años (entre 0 y 2 años atrás)
+                  year = currentYear - Math.floor(Math.random() * 2);
+                } else {
+                  // Por defecto adulto
+                  year = currentYear - Math.floor(Math.random() * (60 - 19 + 1)) - 19;
+                }
+
                 return year.toString();
               }
+
+              const getPassengerType = () => {
+                // Buscar el .pax-name en el tab label activo (donde está el header)
+                const activeTabLabel = document.querySelector('.mat-tab-label.mat-tab-label-active');
+                const paxNameElement = activeTabLabel?.querySelector('.pax-name');
+
+                if (paxNameElement) {
+                  const passengerTypeText = paxNameElement.textContent || '';
+                  console.log('[CONTENT-SCRIPT] Tipo de pasajero detectado:', passengerTypeText);
+                  return passengerTypeText?.trim();
+                }
+                
+                console.log('[CONTENT-SCRIPT] No se encontró elemento .pax-name en el tab header, usando tipo por defecto ADT');
+                return 'ADT';
+              };
 
               const getDataRandom = (data: string[] = []): string => {
                 const randomIndex = Math.floor(Math.random() * data.length);
@@ -69,7 +108,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 return selectedValue;
               };
 
-              const getValueElement = (element: HTMLInputElement | HTMLButtonElement): string => {
+              const getValueElement = (element: HTMLInputElement | HTMLButtonElement, passengerType: string = 'ADT'): string => {
 
                 let value: string = "";
                 let testId = element.dataset['testid'] || '';
@@ -87,7 +126,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 } else if (element.name === "bday-day") {
                   value = getDayData();
                 } else if (element.name === "bday-year") {
-                  value = getYearData();
+                  value = getYearData(passengerType);
                 }
 
                 console.log('[CONTENT-SCRIPT] getValueElement devolviendo valor:', value, 'para elemento:', element);
@@ -116,8 +155,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                 const inputsElements = document.querySelectorAll(".mat-mdc-input-element");
                 const selectElements = document.querySelectorAll('mat-select');
+                const passengerType = getPassengerType();
+
                 console.log('[CONTENT-SCRIPT] Elementos encontrados: ', inputsElements.length, inputsElements);
                 console.log('[CONTENT-SCRIPT] Selects encontrados: ', selectElements.length, selectElements);
+                console.log('[CONTENT-SCRIPT] Tipo de pasajero para este formulario:', passengerType);
 
                 // recorriendo los elementos de tipo input
                 for (const element of Array.from(inputsElements)) {
@@ -144,7 +186,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                   const eventBlur = new Event('blur');
                   const eventFocus = new Event('focus');
-                  const valueElement = getValueElement(element as HTMLInputElement);
+                  const valueElement = getValueElement(element as HTMLInputElement, passengerType);
                   (element as HTMLInputElement).value = valueElement;
                   console.log('[CONTENT-SCRIPT] Valor asignado al elemento:', valueElement);
 
@@ -157,11 +199,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   console.log('[CONTENT-SCRIPT] Disparando evento focus');
                   element.dispatchEvent(eventFocus);
 
-                  setTimeout(() => {
-                    console.log('[CONTENT-SCRIPT] Disparando evento blur');
-                    element.dispatchEvent(eventBlur);
-                    containerElement?.classList.remove('mdc-text-field--focused');
-                  }, 100);
+                  // Esperar a que el evento blur se complete
+                  await new Promise<void>((resolve) => {
+                    setTimeout(() => {
+                      console.log('[CONTENT-SCRIPT] Disparando evento blur');
+                      element.dispatchEvent(eventBlur);
+                      containerElement?.classList.remove('mdc-text-field--focused');
+                      resolve();
+                    }, 100);
+                  });
                 }
 
                 // recorriendo los elementos de tipo select
@@ -192,18 +238,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               for (let i = 0; i < numberPassengers; i++) {
                 const tabPassenger = document.querySelector(`.mat-tab-labels .mat-tab-label:nth-child(${i + 1})`) as HTMLElement;
                 tabPassenger.click();
-                await setValuesDefaultAutoForm();
+
+                // Esperar a que los elementos se carguen antes de rellenar
+                await new Promise((resolve) => {
+                  setTimeout(async () => {
+                    await setValuesDefaultAutoForm();
+                    resolve(null);
+                  }, 500);
+                });
               }
 
-              // click en el botón de submit
-              const continueInformationContact = document.querySelector('button[data-testid="passenger-btn"]') as HTMLButtonElement;
-              if (continueInformationContact) {
-                continueInformationContact.click();
-
-                setTimeout(async () => {
-                  await setValuesDefaultAutoForm();
-                }, 500);
-              }
               return { success: true, message: 'Formulario rellenado' };
             }
           }).then((results) => {
