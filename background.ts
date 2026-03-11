@@ -96,7 +96,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   console.log('[CONTENT-SCRIPT] Tipo de pasajero detectado:', passengerTypeText);
                   return passengerTypeText?.trim();
                 }
-                
+
                 console.log('[CONTENT-SCRIPT] No se encontró elemento .pax-name en el tab header, usando tipo por defecto ADT');
                 return 'ADT';
               };
@@ -151,9 +151,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 await new Promise((r) => setTimeout(r, 200));
               };
 
+              const isReleaseUATEnvironment = (): boolean => {
+                const url = window.location.href.toLowerCase();
+                const isRelease = url.includes('release-booking');
+                console.log('[CONTENT-SCRIPT] isReleaseUATEnvironment: URL actual:', url, 'isRelease:', isRelease);
+                return isRelease;
+              }
+
               const setValuesDefaultAutoForm = async (): Promise<void> => {
 
-                const inputsElements = document.querySelectorAll(".mat-mdc-input-element");
+                const inputsElements = document.querySelectorAll(".mat-mdc-input-element") as NodeListOf<HTMLInputElement>;
                 const selectElements = document.querySelectorAll('mat-select');
                 const passengerType = getPassengerType();
 
@@ -163,8 +170,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                 // recorriendo los elementos de tipo input
                 for (const element of Array.from(inputsElements)) {
+                  // manejando los elementos que son input pero funcionan como select
+                  if (element.getAttribute("formcontrolname") === "countryPhoneExtension" ||
+                    (element.dataset['test'] && element.dataset['test'].toLowerCase().includes('ta-tp-nationality'))) {
 
-                  if (element.getAttribute("formcontrolname") === "countryPhoneExtension") {
                     console.log('[CONTENT-SCRIPT] Elemento de extensión de teléfono encontrado, seleccionando opción:', element);
                     (element as HTMLInputElement).click();
                     await new Promise((r) => setTimeout(r, 200));
@@ -199,7 +208,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   console.log('[CONTENT-SCRIPT] Disparando evento focus');
                   element.dispatchEvent(eventFocus);
 
-                  // Esperar a que el evento blur se complete
+                  // Esperando a que el evento blur se complete
                   await new Promise<void>((resolve) => {
                     setTimeout(() => {
                       console.log('[CONTENT-SCRIPT] Disparando evento blur');
@@ -227,28 +236,64 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 console.log('[CONTENT-SCRIPT] setValuesDefaultAutoForm completado');
               };
 
-              const numberPassengers = document.querySelector(".mat-tab-labels")?.children?.length;
-              console.log('[CONTENT-SCRIPT] Número de pasajeros detectados:', numberPassengers);
+              const isRealeaseUAT = isReleaseUATEnvironment();
 
-              if (!numberPassengers) {
-                console.error('[CONTENT-SCRIPT] No se detectaron pasajeros en el formulario');
-                return { success: false, message: 'No se detectaron pasajeros en el formulario' };
+              if (!isRealeaseUAT) {
+
+                //lógica que sirve para amadeus producción y sprint UAT
+
+                const numberPassengers = document.querySelector(".mat-tab-labels")?.children?.length;
+                console.log('[CONTENT-SCRIPT] Número de pasajeros detectados:', numberPassengers);
+
+                if (!numberPassengers) {
+                  console.error('[CONTENT-SCRIPT] No se detectaron pasajeros en el formulario');
+                  return { success: false, message: 'No se detectaron pasajeros en el formulario' };
+                }
+
+                for (let i = 0; i < numberPassengers; i++) {
+                  const tabPassenger = document.querySelector(`.mat-tab-labels .mat-tab-label:nth-child(${i + 1})`) as HTMLElement;
+                  tabPassenger.click();
+
+                  // Esperar a que los elementos se carguen antes de rellenar
+                  await new Promise((resolve) => {
+                    setTimeout(async () => {
+                      await setValuesDefaultAutoForm();
+                      resolve(null);
+                    }, 500);
+                  });
+                }
+
+                return { success: true, message: 'Formulario rellenado', environment: 'Amadeus Prod/Sprint UAT' };
               }
+              else {
 
-              for (let i = 0; i < numberPassengers; i++) {
-                const tabPassenger = document.querySelector(`.mat-tab-labels .mat-tab-label:nth-child(${i + 1})`) as HTMLElement;
-                tabPassenger.click();
+                console.log('[CONTENT-SCRIPT] Entorno Release UAT detectado, ejecutando script para ambiente de release UAT');
+                //lógica específica para release UAT, donde solo hay un formulario para el primer pasajero
+                const accordionsPassenger = document.querySelectorAll('mat-expansion-panel') as NodeListOf<HTMLButtonElement>;
+                if (accordionsPassenger.length === 0) {
+                  console.error('[CONTENT-SCRIPT] No se encontraron acordeones de pasajeros en el formulario');
+                  return { success: false, message: 'No se encontraron acordeones de pasajeros en el formulario' };
+                }
 
-                // Esperar a que los elementos se carguen antes de rellenar
+                //abriendo los acordeones para que los campos sean detectados por el script de llenado
+                for (const accordion of Array.from(accordionsPassenger)) {
+                  let index = Array.from(accordionsPassenger).indexOf(accordion) + 1;
+                  if (index === 1) continue;
+                  accordion.click();
+                  //esperando 1 segundo
+                  await new Promise((r) => setTimeout(r, 200));
+                }
+
+                // llenando los elementos del formulario
                 await new Promise((resolve) => {
                   setTimeout(async () => {
                     await setValuesDefaultAutoForm();
                     resolve(null);
                   }, 500);
                 });
-              }
 
-              return { success: true, message: 'Formulario rellenado' };
+                return { success: true, message: 'Formulario rellenado Release UAT', environment: 'Amadeus Release UAT' };
+              }
             }
           }).then((results) => {
             console.log('[Background] Script inyectado exitosamente. Resultados:', results)

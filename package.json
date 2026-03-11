@@ -35,7 +35,8 @@
     "host_permissions": [
       "https://www.avianca.com/*",
       "https://*.avtest.ink/*",
-      "https://*.avianca.com/*"
+      "https://*.avianca.com/*",
+      "https://uat.digital.airline.amadeus.com/*"
     ],
     "permissions": [
       "sidePanel",
