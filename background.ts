@@ -33,7 +33,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           chrome.scripting.executeScript({
             target: { tabId: tabs[0].id },
             func: async () => {
-              // Helper para enviar logs al background con manejo de errores visible
+              // función que se usa para enviar logs en la consola de la extensión
               const sendLogToBackground = (message: string, data?: any) => {
                 try {
                   console.log('[LOCAL-LOG]', message, data || '');
@@ -171,7 +171,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   let name = element.getAttribute('name') || '';
                   let formControlName = element.getAttribute('formcontrolname') || '';
 
-                  // Chequear primero por atributo name (fecha de nacimiento)
                   if (name === "bday-day" || formControlName === "day") {
                     value = this.getDayData();
                   } else if (name === "bday-year" || formControlName === "year") {
@@ -179,7 +178,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   } else if (name === "bday-month" || formControlName === "month") {
                     value = String(Math.floor(Math.random() * 12) + 1);
                   }
-                  // Luego chequear por testId
                   else if (testId && testId.toLowerCase().includes('first-name-input')) {
                     value = this.getDataRandom(dataForm.getUserNames());
                   } else if (testId && testId.toLowerCase().includes('last-name-input')) {
@@ -211,17 +209,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                   '12': 'diciembre'
                 },
                 setValuesFormAmadeus: async function (accordion?: HTMLElement): Promise<void> {
-                  // Si es Release UAT y se proporciona accordion, buscar elementos solo dentro de ese accordion
                   const container = accordion || document;
                   const inputsElements = container.querySelectorAll(".mat-mdc-input-element") as NodeListOf<HTMLInputElement>;
                   const selectElements = container.querySelectorAll('mat-select');
 
-                  // Obtener tipo de pasajero del accordion actual (Release UAT) o de forma global
                   const passengerType = this.isReleaseUATEnvironment && accordion
                     ? utils.getPassengerType(accordion)
                     : utils.getPassengerType();
 
-                  // recorriendo los elementos de tipo input SOLO del accordion actual
                   for (const element of Array.from(inputsElements)) {
                     // manejando los elementos que son input pero funcionan como select
                     if (element.getAttribute("formcontrolname") === "countryPhoneExtension" ||
@@ -251,7 +246,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                     element.dispatchEvent(eventFocus);
 
-                    // Esperando a que el evento blur se complete
                     await new Promise<void>((resolve) => {
                       setTimeout(() => {
                         element.dispatchEvent(eventBlur);
@@ -261,7 +255,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     });
                   }
 
-                  // recorriendo los elementos de tipo select SOLO del accordion actual
                   for (const element of Array.from(selectElements)) {
                     const formControlName = element.getAttribute('formcontrolname') || '';
 
@@ -280,7 +273,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     await utils.selectOptionElement(element as HTMLElement);
                   }
 
-                  // check input de términos y condiciones (solo en el accordion actual si existe)
                   const checkPrivacyElement = container.querySelector('mat-checkbox[formcontrolname="isPrivacyPolicyAccepted"]') as HTMLInputElement;
                   if (checkPrivacyElement) {
                     const checkInput = checkPrivacyElement.querySelector('.mdc-checkbox__native-control') as HTMLInputElement;
@@ -302,23 +294,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 for (let i = 0; i < numberAccordions; i++) {
                   const accordion = accordions[i] as HTMLElement;
                   const header = accordion.querySelector('.mat-expansion-panel-header') as HTMLElement;
-
                   if (i !== 0) {
-                    header.click(); // Abrir el accordion
+                    header.click();
                   }
-
-                  // Esperar a que se abra el accordion y se rendericen los elementos
                   await new Promise((resolve) => {
                     setTimeout(async () => {
-                      // Pasar el accordion específico al método para que solo busque elementos dentro de él
                       await amadeusManager.setValuesFormAmadeus(accordion);
 
-                      header.click(); // Cerrar el accordion después de rellenar
+                      header.click();
                       resolve(null);
                     }, 500);
                   });
-
-                  // Pequeña pausa entre accordions para mejorar la experiencia visual
                   await new Promise((resolve) => setTimeout(resolve, 300));
                 }
 
@@ -335,8 +321,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 for (let i = 0; i < numberPassengers; i++) {
                   const tabPassenger = document.querySelector(`.mat-tab-labels .mat-tab-label:nth-child(${i + 1})`) as HTMLElement;
                   tabPassenger.click();
-
-                  // Esperar a que los elementos se carguen antes de rellenar
                   await new Promise((resolve) => {
                     setTimeout(async () => {
                       await amadeusManager.setValuesFormAmadeus();
