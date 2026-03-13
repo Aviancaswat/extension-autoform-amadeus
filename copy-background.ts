@@ -8,13 +8,13 @@ chrome.action.onClicked.addListener(async (tab) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('[Background] onMessage listener ejecutado con request:', request)
   console.log('[Background] sender:', sender)
-
+  
   // Capturar logs del script inyectado
   if (request.action === 'log') {
     console.log('[INJECTED-SCRIPT]', request.message, request.data || '');
     return;
   }
-
+  
   if (request.action === 'fillForm') {
     console.log('[Background] Acción detectada: fillForm')
 
@@ -33,20 +33,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           chrome.scripting.executeScript({
             target: { tabId: tabs[0].id },
             func: async () => {
-              // Helper para enviar logs al background con manejo de errores visible
+              // Helper para enviar logs al background
               const sendLogToBackground = (message: string, data?: any) => {
-                try {
-                  console.log('[LOCAL-LOG]', message, data || '');
-                  chrome.runtime.sendMessage({
-                    action: 'log',
-                    message: message,
-                    data: data
-                  }).catch((error) => {
-                    console.error('[SEND-LOG-ERROR]', error.message);
-                  });
-                } catch (e) {
-                  console.error('[SEND-LOG-ERROR]', e);
-                }
+                chrome.runtime.sendMessage({
+                  action: 'log',
+                  message: message,
+                  data: data
+                }).catch(() => {}); // Ignorar errores si el background no está disponible
               };
 
               const dataForm = {
@@ -78,49 +71,47 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               }
 
               const utils = {
-                getDayData: function (): string {
+                getDayData: (): string => {
                   const day = Math.floor(Math.random() * 28) + 1;
                   return day.toString();
                 },
-                getYearData: function (passengerType = 'ADT'): string {
+                getYearData: (passengerType = 'ADT'): string => {
                   const currentYear = new Date().getFullYear();
                   let year: number;
-
                   if (passengerType.includes('ADT') ||
                     passengerType.toLowerCase().includes('adulto') ||
                     passengerType.toLowerCase().includes('adult')
                   ) {
-                    // Adulto: > 18 años (entre 19 y 60 años atrás) → 1966 a 2007
+                    // Adulto: > 18 años (entre 19 y 60 años atrás)
                     year = currentYear - Math.floor(Math.random() * (60 - 19 + 1)) - 19;
                   } else if (passengerType.includes('YTH') ||
                     passengerType.toLowerCase().includes('joven') ||
                     passengerType.toLowerCase().includes('youth') ||
                     passengerType.toLowerCase().includes('jovem')
                   ) {
-                    // Joven: 12-14 años (entre 12 y 14 años atrás) → 2012 a 2014
+                    // Joven: 12-14 años (entre 12 y 14 años atrás)
                     year = currentYear - Math.floor(Math.random() * (14 - 12 + 1)) - 12;
                   } else if (passengerType.includes('CHD') ||
                     passengerType.toLowerCase().includes('niño') ||
                     passengerType.toLowerCase().includes('child') ||
                     passengerType.toLowerCase().includes('criança')
                   ) {
-                    // Niño: 2-11 años (entre 2 y 11 años atrás) → 2015 a 2024
+                    // Niño: 2-11 años (entre 2 y 11 años atrás)
                     year = currentYear - Math.floor(Math.random() * (11 - 2 + 1)) - 2;
                   } else if (passengerType.includes('INF') ||
                     passengerType.toLowerCase().includes('bebé') ||
                     passengerType.toLowerCase().includes('infant') ||
                     passengerType.toLowerCase().includes('bebê')
                   ) {
-                    // Bebé: <= 2 años (entre 0 y 2 años atrás) → 2024 a 2026
+                    // Bebé: <= 2 años (entre 0 y 2 años atrás)
                     year = currentYear - Math.floor(Math.random() * 2);
                   } else {
-                    // Por defecto adulto: > 18 años (entre 19 y 60 años atrás) → 1966 a 2007
+                    // Por defecto adulto
                     year = currentYear - Math.floor(Math.random() * (60 - 19 + 1)) - 19;
                   }
-
                   return year.toString();
                 },
-                getDataRandom: function (data: string[] = []): string {
+                getDataRandom: (data: string[] = []): string => {
                   const randomIndex = Math.floor(Math.random() * data.length);
                   const selectedValue = data[randomIndex];
                   return selectedValue;
@@ -128,59 +119,56 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 isReleaseUATEnvironment: (): boolean => {
                   const url = window.location.href.toLowerCase();
                   const isRelease = url.includes('release-booking');
+                  sendLogToBackground('[CONTENT-SCRIPT] isReleaseUATEnvironment: URL actual: ' + url + ', isRelease: ' + isRelease);
                   return isRelease;
                 },
                 getPassengerType: function (element?: HTMLElement): string {
+                  let activeTabLabel = null;
                   let paxNameElement = null;
-
+                  sendLogToBackground('[CONTENT-SCRIPT] getPassengerType iniciado. Element proporcionado:', element);
                   if (this.isReleaseUATEnvironment()) {
+                    sendLogToBackground('[CONTENT-SCRIPT] Entorno Release UAT detectado, obteniendo tipo de pasajero para el elemento:', element);
                     if (!element) {
+                      sendLogToBackground('[CONTENT-SCRIPT] ERROR: No se proporcionó el elemento para obtener el tipo de pasajero en entorno Release UAT');
                       return 'ADT';
                     }
-
-                    paxNameElement = element.querySelector(".accordion__pax-count")
-
-                    if (paxNameElement) {
-                      const passengerTypeText = paxNameElement.textContent || '';
-                      return passengerTypeText?.trim();
-                    }
+                    const parentAccordion = element.closest('mat-expansion-panel'); //buscar el accordion activo
+                    sendLogToBackground('[CONTENT-SCRIPT] parent element accordion: ', parentAccordion);
+                    activeTabLabel = parentAccordion?.querySelector("mat-expansion-panel");
+                    paxNameElement = activeTabLabel?.querySelector('.accordion__pax-count'); //cambiar por el de release UAT cuando esté disponible
                   } else {
-                    const activeTabLabel = document.querySelector('.mat-tab-label.mat-tab-label-active');
+                    activeTabLabel = document.querySelector('.mat-tab-label.mat-tab-label-active');
                     paxNameElement = activeTabLabel?.querySelector('.pax-name');
-
-                    if (paxNameElement) {
-                      const passengerTypeText = paxNameElement.textContent || '';
-                      return passengerTypeText?.trim();
-                    }
                   }
 
+                  if (paxNameElement) {
+                    const passengerTypeText = paxNameElement.textContent || '';
+                    sendLogToBackground('[CONTENT-SCRIPT] Tipo de pasajero detectado:', passengerTypeText);
+                    return passengerTypeText?.trim();
+                  }
+
+                  sendLogToBackground('[CONTENT-SCRIPT] No se encontró elemento .pax-name en el tab header, usando tipo por defecto ADT');
                   return 'ADT';
                 },
                 selectOptionElement: async function (element: HTMLElement): Promise<void> {
+                  sendLogToBackground('[CONTENT-SCRIPT] selectOptionElement iniciado');
                   (element as HTMLElement).click();
                   await new Promise((r) => setTimeout(r, 200));
                   const optionSelect = document.querySelector("mat-option") as HTMLButtonElement;
                   if (optionSelect) {
+                    sendLogToBackground('[CONTENT-SCRIPT] Clickeando primera opción:', optionSelect);
                     optionSelect.click();
+                  } else {
+                    sendLogToBackground('[CONTENT-SCRIPT] ERROR: No se encontró ninguna mat-option en el documento:', element);
                   }
                   await new Promise((r) => setTimeout(r, 200));
                 },
                 getValueElement: function (element: HTMLInputElement | HTMLButtonElement, passengerType: string = 'ADT'): string {
+
                   let value: string = "";
                   let testId = element.dataset['testid'] || '';
-                  let name = element.getAttribute('name') || '';
-                  let formControlName = element.getAttribute('formcontrolname') || '';
 
-                  // Chequear primero por atributo name (fecha de nacimiento)
-                  if (name === "bday-day" || formControlName === "day") {
-                    value = this.getDayData();
-                  } else if (name === "bday-year" || formControlName === "year") {
-                    value = this.getYearData(passengerType);
-                  } else if (name === "bday-month" || formControlName === "month") {
-                    value = String(Math.floor(Math.random() * 12) + 1);
-                  }
-                  // Luego chequear por testId
-                  else if (testId && testId.toLowerCase().includes('first-name-input')) {
+                  if (testId && testId.toLowerCase().includes('first-name-input')) {
                     value = this.getDataRandom(dataForm.getUserNames());
                   } else if (testId && testId.toLowerCase().includes('last-name-input')) {
                     value = this.getDataRandom(dataForm.getLastNames());
@@ -188,41 +176,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     value = this.getDataRandom(dataForm.getPhoneNumbers());
                   } else if (testId && (testId.toLowerCase().includes('email-input-element') || testId.toLowerCase().includes('confirm-email-input-element'))) {
                     value = this.getDataRandom(dataForm.getEmails());
+                  } else if (element.name === "bday-day") {
+                    value = this.getDayData();
+                  } else if (element.name === "bday-year") {
+                    value = this.getYearData(passengerType);
                   }
 
+                  sendLogToBackground('[CONTENT-SCRIPT] getValueElement devolviendo valor: ' + value);
                   return value;
                 }
               }
 
               const amadeusManager = {
                 isReleaseUATEnvironment: utils.isReleaseUATEnvironment(),
-                monthNames: {
-                  '1': 'enero',
-                  '2': 'febrero',
-                  '3': 'marzo',
-                  '4': 'abril',
-                  '5': 'mayo',
-                  '6': 'junio',
-                  '7': 'julio',
-                  '8': 'agosto',
-                  '9': 'septiembre',
-                  '10': 'octubre',
-                  '11': 'noviembre',
-                  '12': 'diciembre'
-                },
-                setValuesFormAmadeus: async function (accordion?: HTMLElement): Promise<void> {
-                  // Si es Release UAT y se proporciona accordion, buscar elementos solo dentro de ese accordion
-                  const container = accordion || document;
-                  const inputsElements = container.querySelectorAll(".mat-mdc-input-element") as NodeListOf<HTMLInputElement>;
-                  const selectElements = container.querySelectorAll('mat-select');
+                setValuesFormAmadeus: async function (): Promise<void> {
+                  const inputsElements = document.querySelectorAll(".mat-mdc-input-element") as NodeListOf<HTMLInputElement>;
+                  const selectElements = document.querySelectorAll('mat-select');
+                  // En Release UAT, se obtiene el tipo de pasajero por cada elemento
+                  // En otros ambientes, se obtiene una sola vez
+                  const passengerType = this.isReleaseUATEnvironment ? '' : utils.getPassengerType();
 
-                  // Obtener tipo de pasajero del accordion actual (Release UAT) o de forma global
-                  const passengerType = this.isReleaseUATEnvironment && accordion
-                    ? utils.getPassengerType(accordion)
-                    : utils.getPassengerType();
+                  sendLogToBackground('[CONTENT-SCRIPT] Elementos encontrados: ' + inputsElements.length);
+                  sendLogToBackground('[CONTENT-SCRIPT] Selects encontrados: ' + selectElements.length);
+                  if (!this.isReleaseUATEnvironment) {
+                    sendLogToBackground('[CONTENT-SCRIPT] Tipo de pasajero para este formulario: ' + passengerType);
+                  }
 
-                  // recorriendo los elementos de tipo input SOLO del accordion actual
+                  // recorriendo los elementos de tipo input
                   for (const element of Array.from(inputsElements)) {
+                    // Obtener el tipo de pasajero para el elemento actual
+                    let currentPassengerType = passengerType;
+                    if (this.isReleaseUATEnvironment) {
+                      currentPassengerType = utils.getPassengerType(element);
+                    }
+
                     // manejando los elementos que son input pero funcionan como select
                     if (element.getAttribute("formcontrolname") === "countryPhoneExtension" ||
                       (element.dataset['test'] && element.dataset['test'].toLowerCase().includes('ta-tp-nationality'))) {
@@ -232,6 +219,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                       if (optionSelect) {
                         optionSelect.click();
                         await new Promise((r) => setTimeout(r, 200));
+                      } else {
+                        sendLogToBackground('[CONTENT-SCRIPT] ERROR: No se encontró ninguna mat-option para extensión de teléfono en el documento:', element);
                       }
                       continue;
                     }
@@ -241,7 +230,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                     const eventBlur = new Event('blur');
                     const eventFocus = new Event('focus');
-                    const valueElement = utils.getValueElement(element as HTMLInputElement, passengerType);
+                    const valueElement = utils.getValueElement(element as HTMLInputElement, currentPassengerType);
                     (element as HTMLInputElement).value = valueElement;
 
                     ['change', 'input'].forEach((event) => {
@@ -261,74 +250,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     });
                   }
 
-                  // recorriendo los elementos de tipo select SOLO del accordion actual
+                  // recorriendo los elementos de tipo select
                   for (const element of Array.from(selectElements)) {
-                    const formControlName = element.getAttribute('formcontrolname') || '';
-
-                    if(formControlName === "year"){
-                      const valueYearByTypePassenger = utils.getYearData(passengerType);
-                      (element as HTMLInputElement).click();
-                      await new Promise((r) => setTimeout(r, 200));
-                      const optionsYear = document.querySelectorAll("mat-option");
-                      const optionYearToSelect = Array.from(optionsYear).find(option => option.textContent?.trim() === valueYearByTypePassenger);
-                      if (optionYearToSelect) {
-                        (optionYearToSelect as HTMLButtonElement).click();
-                      }
-                      continue;
-                    }
-
                     await utils.selectOptionElement(element as HTMLElement);
                   }
 
-                  // check input de términos y condiciones (solo en el accordion actual si existe)
-                  const checkPrivacyElement = container.querySelector('mat-checkbox[formcontrolname="isPrivacyPolicyAccepted"]') as HTMLInputElement;
+                  // check input de términos y condiciones
+                  const checkPrivacyElement = document.querySelector('mat-checkbox[formcontrolname="isPrivacyPolicyAccepted"]') as HTMLInputElement;
                   if (checkPrivacyElement) {
                     const checkInput = checkPrivacyElement.querySelector('.mdc-checkbox__native-control') as HTMLInputElement;
                     checkInput.click();
+                  } else {
+                    sendLogToBackground('[CONTENT-SCRIPT] ERROR: No se encontró el elemento de política de privacidad en el documento');
                   }
                 }
               }
 
               const isRealeaseUAT = amadeusManager.isReleaseUATEnvironment;
+              sendLogToBackground('[CONTENT-SCRIPT] isReleaseUATEnvironment: ' + isRealeaseUAT);
 
               if (isRealeaseUAT) {
-                const accordions = document.querySelectorAll('mat-accordion mat-expansion-panel');
-                const numberAccordions = accordions.length;
-
-                if (numberAccordions === 0) {
-                  return { success: false, message: 'No se detectaron pasajeros (accordions) en el formulario' };
-                }
-
-                for (let i = 0; i < numberAccordions; i++) {
-                  const accordion = accordions[i] as HTMLElement;
-                  const header = accordion.querySelector('.mat-expansion-panel-header') as HTMLElement;
-
-                  if (i !== 0) {
-                    header.click(); // Abrir el accordion
-                  }
-
-                  // Esperar a que se abra el accordion y se rendericen los elementos
-                  await new Promise((resolve) => {
-                    setTimeout(async () => {
-                      // Pasar el accordion específico al método para que solo busque elementos dentro de él
-                      await amadeusManager.setValuesFormAmadeus(accordion);
-
-                      header.click(); // Cerrar el accordion después de rellenar
-                      resolve(null);
-                    }, 500);
-                  });
-
-                  // Pequeña pausa entre accordions para mejorar la experiencia visual
-                  await new Promise((resolve) => setTimeout(resolve, 300));
-                }
+                sendLogToBackground('[CONTENT-SCRIPT] Entorno Release UAT detectado, ejecutando script para ambiente de release UAT');
+                // llenando los elementos del formulario
+                await new Promise((resolve) => {
+                  setTimeout(async () => {
+                    await amadeusManager.setValuesFormAmadeus();
+                    resolve(null);
+                  }, 500);
+                });
 
                 return { success: true, message: "Formulario rellenado", enviroment: 'Amadeus Release UAT' }
               }
               else {
 
                 const numberPassengers = document.querySelector(".mat-tab-labels")?.children?.length;
+                sendLogToBackground('[CONTENT-SCRIPT] Número de pasajeros detectados: ' + numberPassengers);
 
                 if (!numberPassengers) {
+                  sendLogToBackground('[CONTENT-SCRIPT] ERROR: No se detectaron pasajeros en el formulario');
                   return { success: false, message: 'No se detectaron pasajeros en el formulario' };
                 }
 
