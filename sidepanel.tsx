@@ -8,23 +8,39 @@ function IndexSidepanel() {
   const handleClick = async () => {
     if (status === "loading") return
     setStatus("loading")
-    
+
     console.log("[Sidepanel] Enviando mensaje para rellenar formulario...")
-    chrome.runtime.sendMessage(
-      {
-        action: "fillForm"
-      },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          console.error("[Sidepanel] Error al rellenar formulario:", chrome.runtime.lastError)
-        } else {
-          console.log("[Sidepanel] Mensaje enviado exitosamente. Respuesta:", response)
-        }
-      }
-    )
     
-    await new Promise((r) => setTimeout(r, 3500))
-    setStatus("done")
+    try {
+      const response = await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Timeout esperando respuesta del background"))
+        }, 30000) // 30 segundos de timeout
+
+        chrome.runtime.sendMessage(
+          {
+            action: "fillForm"
+          },
+          (response) => {
+            clearTimeout(timeout)
+            if (chrome.runtime.lastError) {
+              console.error("[Sidepanel] Error al rellenar formulario:", chrome.runtime.lastError)
+              reject(chrome.runtime.lastError)
+            } else {
+              console.log("[Sidepanel] Mensaje recibido correctamente. Respuesta:", response)
+              resolve(response)
+            }
+          }
+        )
+      })
+
+      console.log("[Sidepanel] Formulario rellenado exitosamente")
+      setStatus("done")
+    } catch (error) {
+      console.error("[Sidepanel] Error en handleClick:", error)
+      setStatus("idle")
+    }
+
     setTimeout(() => setStatus("idle"), 2200)
   }
 
@@ -52,11 +68,10 @@ function IndexSidepanel() {
               <Button
                 onClick={handleClick}
                 disabled={status === "loading"}
-                className={`w-full rounded-full py-3 text-white transition-all ${
-                  status === "done"
+                className={`w-full rounded-full py-3 text-white transition-all ${status === "done"
                     ? "bg-teal-500 shadow-[0_8px_25px_rgba(34,197,94,0.14)]"
                     : "bg-gradient-to-r from-[#ff4b4b] to-[#ff3333] shadow-[0_8px_25px_rgba(255,75,75,0.18)]"
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-center gap-3">
                   {status === "loading" ? (
@@ -95,7 +110,7 @@ function IndexSidepanel() {
           <div className="space-y-3">
             <div className="flex items-start gap-3 p-3 rounded-lg bg-[rgba(255,255,255,0.01)] border border-[rgba(255,255,255,0.02)]">
               <div className="w-12 h-12 rounded-md bg-[#083434] flex items-center justify-center text-teal-300">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7ee3d6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><circle cx="18" cy="8" r="2"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7ee3d6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><circle cx="18" cy="8" r="2" /></svg>
               </div>
               <div>
                 <div className="font-semibold text-sm text-white">Múltiples pasajeros</div>
@@ -105,7 +120,7 @@ function IndexSidepanel() {
 
             <div className="flex items-start gap-3 p-3 rounded-lg bg-[rgba(255,255,255,0.01)] border border-[rgba(255,255,255,0.02)]">
               <div className="w-12 h-12 rounded-md bg-[#083434] flex items-center justify-center text-teal-300">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7ee3d6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M16 2v4"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7ee3d6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M16 2v4" /></svg>
               </div>
               <div>
                 <div className="font-semibold text-sm text-white">Reservas activas</div>
@@ -115,7 +130,7 @@ function IndexSidepanel() {
 
             <div className="flex items-start gap-3 p-3 rounded-lg bg-[rgba(255,255,255,0.01)] border border-[rgba(255,255,255,0.02)]">
               <div className="w-12 h-12 rounded-md bg-[#083434] flex items-center justify-center text-teal-300">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7ee3d6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7ee3d6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9z" /></svg>
               </div>
               <div>
                 <div className="font-semibold text-sm text-white">Instantáneo</div>
