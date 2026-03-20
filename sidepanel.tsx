@@ -45,7 +45,7 @@ function IndexSidepanel() {
   }
 
   return (
-    <div className="w-full flex items-center justify-center p-6" style={{ background: 'linear-gradient(180deg,#031618 0%, #041d20 100%)' }}>
+    <div className="w-full h-full flex items-center justify-center p-6 min-h-screen" style={{ background: 'linear-gradient(180deg,#031618 0%, #041d20 100%)' }}>
       <div className="w-full max-w-xs text-gray-200">
         <div className="flex flex-col items-center gap-3 mb-6">
           <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#071617] to-[#0b2626] flex items-center justify-center shadow-[0_8px_30px_rgba(0,0,0,0.6)] border border-[rgba(255,255,255,0.02)]">

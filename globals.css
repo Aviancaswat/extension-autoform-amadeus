@@ -54,6 +54,11 @@
 }
 
 body {
-  @apply bg-background text-foreground;
+  @apply text-foreground;
+}
+
+#__plasmo {
+  display: flex;
+  flex-direction: column;
 }
 
